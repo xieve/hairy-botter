@@ -9,11 +9,8 @@ local client = discordia.Client()
 local players = {}
 local msg = {}
 local objects = {}
-local connection
 local msg = ''
 local channel
-local playingURL = ''
-local playingTrack = 0
 
 --functions
 local function writeTable(filename, tbl)
@@ -31,69 +28,6 @@ local function readTable(filename)
   else
     return {}
   end
-end
-
-local function getStream(url)
-
-  local child = spawn('youtube-dl', {
-    args = {'-g', url},
-    stdio = {nil, true, true}
-  })
-
-  local stream
-  local function readstdout()
-    local stdout = child.stdout
-    for chunk in stdout.read do
-      local mime = parse(chunk, true).query.mime
-      if mime and mime:find('audio') then
-        stream = chunk
-      end
-    end
-    return pcall(stdout.handle.close, stdout.handle)
-  end
-
-  local function readstderr()
-    local stderr = child.stderr
-    for chunk in stderr.read do
-      print(chunk)
-    end
-    return pcall(stderr.handle.close, stderr.handle)
-  end
-
-  split(readstdout, readstderr, child.waitExit)
-
-  return stream and stream:gsub('%c', '')
-end
-
-local function getPlaylistStream(url, number)
-  local child = spawn('youtube-dl', {
-    args = {'-g', '--playlist-items', number, url},
-    stdio = {nil, true, true}
-  })
-
-  local stream
-  local function readstdout()
-    local stdout = child.stdout
-    for chunk in stdout.read do
-      local mime = parse(chunk, true).query.mime
-      if mime and mime:find('audio') then
-        stream = chunk
-      end
-    end
-    return pcall(stdout.handle.close, stdout.handle)
-  end
-
-  local function readstderr()
-    local stderr = child.stderr
-    for chunk in stderr.read do
-      print(chunk)
-    end
-    return pcall(stderr.handle.close, stderr.handle)
-  end
-
-  split(readstdout, readstderr, child.waitExit)
-
-  return stream and stream:gsub('%c', '')
 end
 
 local function len(tbl)
@@ -149,26 +83,6 @@ local function characterCreationF(step, stat, statValue, verificationMsg)
   end
 end
 
-local streamPlaylist = coroutine.wrap(function(url, beginWith)
-  local child = spawn('youtube-dl', {
-    args = {'-J', url},
-  })
-  stdio = {nil, true, true}
-  local playlist = json.decode(child.stdout:read())
-  connection = vChannel:join()
-  if connection then
-    p('Connected')
-    for playingTrack = beginWith or 1, len(playlist.entries) do
-      local stream = getPlaylistStream(url, playingTrack) -- URL goes here
-      print('Playing track '..playingTrack..' of '..len(playlist.entries))
-      connection:playFile(stream)
-    end
-  end
-end)
-
-client.voice:loadOpus('libopus-x86')
-client.voice:loadSodium('libsodium-x86')
-
 do
   print('Starting...')
   players = readTable('players.json')
@@ -181,14 +95,14 @@ end
 
 client:on('ready', function()
   print('Logged in as '.. client.user.username)
-  vChannel = client:getVoiceChannel('251093576639971329') -- vChannel ID goes here
-  client:getChannel('251369598203592704'):sendMessage('Guten Morgen oder so! Ich bin jetzt wach!')
+  --client:getChannel('251369598203592704'):sendMessage('Guten Morgen oder so! Ich bin jetzt wach!')
 end)
 
 client:on('messageCreate', function(message)
   print(message.timestamp.. ' <'.. message.author.name.. '> '.. message.content) --Screen output
   if message.author.id ~= client.user.id then --If not himself
     msg = message
+
     --Metatable Setup
     if not players[msg.author.id] then
       players[msg.author.id] = {}
@@ -196,15 +110,7 @@ client:on('messageCreate', function(message)
     setmetatable(players[msg.author.id], players.mt)
 
     --User Interface
-    ifMatch('Sag mal', string.gsub(msg.content, 'Sag mal', ''))
-    ifMatch('9001', string.gsub(msg.content, '9001', '')..'over ninethousand!')
-    ifMatch('Angel', 'Eine Angel ist ein Ding, welches meist aus einem langem Stab besteht. Nils trägt es meist mit sich und hält es gerne in der Hand.')
-    ifMatch(' ist explodiert', 'Du baust '..string.gsub(msg.content, ' ist explodiert', '', 10)..' wieder auf!')
-    ifMatch('dumme Kinder', 'Is halt schon so.')
-    ifMatch('Zustimmung', 'Seh ich auch so.')
-    ifMatch('ija', 'Nein, Nils.')
-    ifMatch('fap', msg.author.mentionString..' hat sich kurz zurückgezogen.')
-    ifMatch('+help', '**RPG**: Mit `+rpgstart` kommt man in die Charaktererstellung, mit `+stats` ruft man seine Statistiken ab und mit `+inventar` sein Inventar.\n**Musik**:`audio.play URL` um einzelne YouTube-Videos abzuspielen, `audio.playlist URL` um YouTube-Playlists abzuspielen, `audio.skip` um zum nächsten Video in der Playlist zu skippen, `audio.pause` und `audio.resume` sind selbsterklärend.')
+    ifMatch('+help', '**RPG**: Mit `+rpgstart` kommt man in die Charaktererstellung, mit `+stats` ruft man seine Statistiken ab und mit `+inventar` sein Inventar.')
 
     --Bot Control
     if msg.content == 'bot.stop' then
@@ -296,27 +202,6 @@ client:on('messageCreate', function(message)
 
     --Server-only Things
     elseif not msg.channel.isPrivate then
-
-      --Music control
-      if string.match(msg.content, 'audio.play ') then
-        connection = vChannel:join()
-        if connection then
-          print('connected')
-          playingURL = string.gsub(msg.content, 'audio.play ', '')
-          local stream = getStream(playingURL) -- URL goes here
-          print('playing')
-          connection:playFile(stream)
-        end
-      elseif string.match(msg.content, 'audio.playlist ') then
-        playingURL = string.gsub(msg.content, 'audio.playlist ', '')
-        streamPlaylist(playingURL)
-      elseif msg.content == 'audio.pause' then
-        connection:pauseStream(playingURL)
-      elseif msg.content == 'audio.resume' then
-        connection:resumeStream()
-      elseif msg.content == 'audio.skip' then
-        print('stopping')
-        connection:stopStream()
 
       --DM-Commands
       elseif string.match(msg.content, 'Level') then
