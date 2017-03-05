@@ -4,15 +4,23 @@ local cmd = require('command.lua')
 
 local client = discordia.Client()
 
-local players = {}
-local msg = {}
+local players = {foo = 'foo'}
 local objects = {}
+local msg = {}
+local meta = {
+  __index = {
+    inventory = {},
+    hp = 30,
+    level = 0,
+    characterCreation = 0
+  }
+}
 
 local msg = ''
 local prefix = '+'
 
 --functions
-local function count(tbl)
+function table.len(tbl)
   local val = 0
   for k,v in pairs(tbl) do
     val = val + 1
@@ -45,7 +53,7 @@ local function permCheck(member, permission)
   end
 end
 
-local function rpgUpdate(player, stat, statValue, verificationMsg)
+local function statUpdate(player, stat, statValue, verificationMsg)
   if players[msg.author.id].characterCreation then
     if players[msg.author.id].characterCreation == 4 then
       players[player.id][stat] = statValue
@@ -60,7 +68,7 @@ local function rpgUpdate(player, stat, statValue, verificationMsg)
   end
 end
 
-local function characterCreationF(step, stat, statValue, verificationMsg)
+local function characterCreation(step, stat, statValue, verificationMsg)
   if players[msg.author.id].characterCreation then
     if players[msg.author.id].characterCreation == step then
       players[msg.author.id][stat] = statValue
@@ -74,6 +82,13 @@ local function characterCreationF(step, stat, statValue, verificationMsg)
   else
     msg:reply('Bitte erstelle zuerst einen Charakter mit +rpgstart')
   end
+end
+
+local function inventoryUpdate(user, object, amount)
+  players[user.id].inventory = players[user.id].inventory or {}
+  players[user.id].inventory[object] = players[user.id].inventory[object] or {}
+  players[user.id].inventory[object].amount = players[user.id].inventory[object].amount or 0
+  players[user.id].inventory[object].amount = players[user.id].inventory[object].amount + amount
 end
 
 do
@@ -101,7 +116,7 @@ client:on('messageCreate', function(message)
     if not players[msg.author.id] then
       players[msg.author.id] = {}
     end
-    setmetatable(players[msg.author.id], players.mt)
+    setmetatable(players[msg.author.id], meta)
 
     if command then
       --User Interface
@@ -172,33 +187,33 @@ client:on('messageCreate', function(message)
           end
         end
       elseif command.main == 'newitem' and permCheck(msg.member, 'administrator') then
-        rpgUpdate(msg.author, 'itemCreation', 1, 'Name?')
+        statUpdate(msg.author, 'itemCreation', 1, 'Name?')
       end
 
     --Character Creation
     elseif players[msg.author.id].characterCreation and players[msg.author.id].characterCreation < 4 then
       if string.find(msg.content, 'Mann') then
-        characterCreationF(1, 'gender', 'Mann', 'Schöne Sache, '..msg.author.mentionString..', schöne Sache. Nun zu deiner Rasse: Wärst du gerne ein flinker, intelligenter Elf oder lieber ein kleiner, praktischer Halbling? Wie wäre es mit einem starken Zwerg der nicht ganz so hell in der Birne ist oder einem klassischem, ausgeglichenem Menschen?')
+        characterCreation(1, 'gender', 'Mann', 'Schöne Sache, '..msg.author.mentionString..', schöne Sache. Nun zu deiner Rasse: Wärst du gerne ein flinker, intelligenter Elf oder lieber ein kleiner, praktischer Halbling? Wie wäre es mit einem starken Zwerg der nicht ganz so hell in der Birne ist oder einem klassischem, ausgeglichenem Menschen?')
       elseif string.find(msg.content, 'Frau') then
-        characterCreationF(1, 'gender', 'Frau', 'Schöne Sache, '..msg.author.mentionString..', schöne Sache. Nun zu deiner Rasse: Wärst du gerne eine flinke, intelligente Elfe oder lieber eine kleine, praktische Halblingsfrau? Wie wäre es mit einer starken Zwergenfrau die nicht ganz so hell in der Birne ist oder einer klassischen, ausgeglichenen Menschenfrau?')
+        characterCreation(1, 'gender', 'Frau', 'Schöne Sache, '..msg.author.mentionString..', schöne Sache. Nun zu deiner Rasse: Wärst du gerne eine flinke, intelligente Elfe oder lieber eine kleine, praktische Halblingsfrau? Wie wäre es mit einer starken Zwergenfrau die nicht ganz so hell in der Birne ist oder einer klassischen, ausgeglichenen Menschenfrau?')
       elseif string.find(msg.content, 'Zwerg') then
-        characterCreationF(2, 'race', 'Zwerg', 'Soso. Ein Zwerg. Als letztes suche dir bitte eine Klasse aus: Möchtest du ein von Gott getriebener Priester sein? Oder ein hinterhältiger Assasine? Möchtest du mit der Kraft eines Kriegers zuschlagen können oder bist du ein Magier mit voller Trickkiste?')
+        characterCreation(2, 'race', 'Zwerg', 'Soso. Ein Zwerg. Als letztes suche dir bitte eine Klasse aus: Möchtest du ein von Gott getriebener Priester sein? Oder ein hinterhältiger Assasine? Möchtest du mit der Kraft eines Kriegers zuschlagen können oder bist du ein Magier mit voller Trickkiste?')
       elseif string.find(msg.content, 'Mensch') then
-        characterCreationF(2, 'race', 'Mensch', 'Soso. Ein Mensch. Als letztes suche dir bitte eine Klasse aus: Möchtest du ein von Gott getriebener Priester sein? Oder ein hinterhältiger Assasine? Möchtest du mit der Kraft eines Kriegers zuschlagen können oder bist du ein Magier mit voller Trickkiste?')
+        characterCreation(2, 'race', 'Mensch', 'Soso. Ein Mensch. Als letztes suche dir bitte eine Klasse aus: Möchtest du ein von Gott getriebener Priester sein? Oder ein hinterhältiger Assasine? Möchtest du mit der Kraft eines Kriegers zuschlagen können oder bist du ein Magier mit voller Trickkiste?')
       elseif string.find(msg.content, 'Elfe') then
-        characterCreationF(2, 'race', 'Elf', 'Soso. Eine Elfe. Als letztes suche dir bitte eine Klasse aus: Möchtest du ein von Gott getriebener Priester sein? Oder ein hinterhältiger Assasine? Möchtest du mit der Kraft eines Kriegers zuschlagen können oder bist du ein Magier mit voller Trickkiste?')
+        characterCreation(2, 'race', 'Elf', 'Soso. Eine Elfe. Als letztes suche dir bitte eine Klasse aus: Möchtest du ein von Gott getriebener Priester sein? Oder ein hinterhältiger Assasine? Möchtest du mit der Kraft eines Kriegers zuschlagen können oder bist du ein Magier mit voller Trickkiste?')
       elseif string.find(msg.content, 'Elf') then
-        characterCreationF(2, 'race', 'Elf', 'Soso. Ein Elf. Als letztes suche dir bitte eine Klasse aus: Möchtest du ein von Gott getriebener Priester sein? Oder ein hinterhältiger Assasine? Möchtest du mit der Kraft eines Kriegers zuschlagen können oder bist du ein Magier mit voller Trickkiste?')
+        characterCreation(2, 'race', 'Elf', 'Soso. Ein Elf. Als letztes suche dir bitte eine Klasse aus: Möchtest du ein von Gott getriebener Priester sein? Oder ein hinterhältiger Assasine? Möchtest du mit der Kraft eines Kriegers zuschlagen können oder bist du ein Magier mit voller Trickkiste?')
       elseif string.find(msg.content, 'Halbling') then
-        characterCreationF(2, 'race', 'Halbling', 'Soso. Ein Halbling. Als letztes suche dir bitte eine Klasse aus: Möchtest du ein von Gott getriebener Priester sein? Oder ein hinterhältiger Assasine? Möchtest du mit der Kraft eines Kriegers zuschlagen können oder bist du ein Magier mit voller Trickkiste?')
+        characterCreation(2, 'race', 'Halbling', 'Soso. Ein Halbling. Als letztes suche dir bitte eine Klasse aus: Möchtest du ein von Gott getriebener Priester sein? Oder ein hinterhältiger Assasine? Möchtest du mit der Kraft eines Kriegers zuschlagen können oder bist du ein Magier mit voller Trickkiste?')
       elseif string.find(msg.content, 'Priester') then
-        characterCreationF(3, 'class', 'Priester', 'Ein Geistiger also. Interessante Wahl.')
+        characterCreation(3, 'class', 'Priester', 'Ein Geistiger also. Interessante Wahl.')
       elseif string.find(msg.content, 'Assasine') then
-        characterCreationF(3, 'class', 'Assasine', 'Ein Assasine also. Interessante Wahl.')
+        characterCreation(3, 'class', 'Assasine', 'Ein Assasine also. Interessante Wahl.')
       elseif string.find(msg.content, 'Krieger') then
-        characterCreationF(3, 'class', 'Krieger', 'Ein Kämpfer also. Interessante Wahl.')
+        characterCreation(3, 'class', 'Krieger', 'Ein Kämpfer also. Interessante Wahl.')
       elseif string.find(msg.content, 'Magier') then
-        characterCreationF(3, 'class', 'Magier', 'Ein Magier also. Interessante Wahl.')
+        characterCreation(3, 'class', 'Magier', 'Ein Magier also. Interessante Wahl.')
 
       end
 
@@ -211,12 +226,12 @@ client:on('messageCreate', function(message)
           if string.find(msg.content, 'Abzug') then
             for user in msg.mentionedUsers do
               local lvlMod = tonumber(string.find(msg.content, '%d*'))
-              rpgUpdate(user, 'level', players[user.id].level - tonumber(string.find(msg.content, '%d*')), user.mentionString..' ist jetzt auf Level '..players[user.id].level - lvlMod..'.')
+              statUpdate(user, 'level', players[user.id].level - tonumber(string.find(msg.content, '%d*')), user.mentionString..' ist jetzt auf Level '..players[user.id].level - lvlMod..'.')
             end
           else
             for user in msg.mentionedUsers do
               local lvlMod = tonumber(string.find(msg.content, '%d*'))
-              rpgUpdate(user, 'level', players[user.id].level + tonumber(string.find(msg.content, '%d*')), user.mentionString..' ist jetzt auf Level '..players[user.id].level + lvlMod..'.')
+              statUpdate(user, 'level', players[user.id].level + tonumber(string.find(msg.content, '%d*')), user.mentionString..' ist jetzt auf Level '..players[user.id].level + lvlMod..'.')
             end
           end
         end
@@ -224,7 +239,7 @@ client:on('messageCreate', function(message)
       --Spells
       elseif string.find(msg.content, 'Ein Feuerball, mit viel Geknall') and (players[msg.author.id].class == 'Magier' or players[msg.author.id].class == 'Erschaffer') then
         for user in msg.mentionedUsers do
-          rpgUpdate(user, 'hp', players[user.id].hp - 1, user.mentionString..' wurde getroffen und hat jetzt nur noch '..tostring(players[user.id].hp - 1)..' HP.')
+          statUpdate(user, 'hp', players[user.id].hp - 1, user.mentionString..' wurde getroffen und hat jetzt nur noch '..tostring(players[user.id].hp - 1)..' HP.')
         end
 
       --Item Creation
@@ -244,7 +259,7 @@ client:on('messageCreate', function(message)
 
     --Random Chests
     if math.random(1,15) == 3 or msg.content == 'ranChest' then
-      local randval = math.random(1, count(objects)) -- get a random point
+      local randval = math.random(1, table.len(objects)) -- get a random point
       local randentry
       local count = 0
       for k,v in pairs(objects) do
@@ -254,11 +269,7 @@ client:on('messageCreate', function(message)
         end
       end
       msg:reply('Du hast eine Kiste gefunden. Sie enthielt ein '..randentry.key..'.')
-      if not players[msg.author.id].inventory[randentry.key] then
-        players[msg.author.id].inventory[randentry.key] = {}
-      end
-      setmetatable(players[msg.author.id].inventory[randentry.key], players.mt)
-      players[msg.author.id].inventory[randentry.key].amount = players[msg.author.id].inventory[randentry.key].amount + 1
+      inventoryUpdate(msg.author, randentry.key, 1)
     end
   end
 end)
