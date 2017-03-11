@@ -187,7 +187,7 @@ client:on('messageCreate', function(message)
           end
         end
       elseif command.main == 'newitem' and permCheck(msg.member, 'administrator') then
-        statUpdate(msg.author, 'itemCreation', 1, 'Name?')
+        objects[command.args[1]] = {info = command.args[2]}
       end
 
     -- Character Creation
@@ -238,19 +238,6 @@ client:on('messageCreate', function(message)
       elseif string.find(msg.content, 'Ein Feuerball, mit viel Geknall') and (players[msg.author.id].class == 'Magier' or players[msg.author.id].class == 'Erschaffer') then
         for user in msg.mentionedUsers do
           statUpdate(user, 'hp', players[user.id].hp - 1, user.mentionString..' wurde getroffen und hat jetzt nur noch '..tostring(players[user.id].hp - 1)..' HP.')
-        end
-
-      -- Item Creation
-    elseif players[msg.author.id].itemCreation ~= 0 and permCheck(msg.member, 'administrator') then
-        if players[msg.author.id].itemCreation == 1 then
-          objects[msg.content] = {}
-          players[msg.author.id].creating = msg.content
-          players[msg.author.id].itemCreation = 2
-          msg:reply('Info?')
-        elseif players[msg.author.id].itemCreation == 2 then
-          objects[players[msg.author.id].creating].info = msg.content
-          players[msg.author.id].itemCreation = nil
-          players[msg.author.id].creating = nil
         end
       end
     end
