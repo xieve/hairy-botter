@@ -4,7 +4,7 @@ local cmd = require('command.lua')
 
 local client = discordia.Client()
 
-local players = {foo = 'foo'}
+local players = {}
 local objects = {}
 local msg = {}
 local meta = {
@@ -17,7 +17,7 @@ local meta = {
 }
 
 local msg = ''
-local prefix = '+'
+local prefix = '#'
 
 --functions
 function table.len(tbl)
@@ -61,10 +61,10 @@ local function statUpdate(player, stat, statValue, verificationMsg)
         msg:reply(verificationMsg)
       end
     else
-      msg:reply('Bitte erstelle zuerst einen Charakter mit +rpgstart')
+      msg:reply('Bitte erstelle zuerst einen Charakter mit '..prefix..'rpgstart')
     end
   else
-    msg:reply('Bitte erstelle zuerst einen Charakter mit +rpgstart')
+    msg:reply('Bitte erstelle zuerst einen Charakter mit '..prefix..'rpgstart')
   end
 end
 
@@ -77,10 +77,10 @@ local function characterCreation(step, stat, statValue, verificationMsg)
         msg:reply(verificationMsg)
       end
     else
-      msg:reply('Bitte erstelle zuerst einen Charakter mit +rpgstart')
+      msg:reply('Bitte erstelle zuerst einen Charakter mit '..prefix..'rpgstart')
     end
   else
-    msg:reply('Bitte erstelle zuerst einen Charakter mit +rpgstart')
+    msg:reply('Bitte erstelle zuerst einen Charakter mit '..prefix..'rpgstart')
   end
 end
 
@@ -103,7 +103,7 @@ end
 
 client:on('ready', function()
   print('Logged in as '.. client.user.username)
-  --client:getChannel('251369598203592704'):sendMessage('Guten Morgen oder so! Ich bin jetzt wach!')
+  client:setGameName(prefix..'help')
 end)
 
 client:on('messageCreate', function(message)
@@ -112,19 +112,19 @@ client:on('messageCreate', function(message)
     msg = message
     local command = cmd.separate(prefix, msg.content)
 
-    --Metatable Setup
+    -- Metatable Setup
     if not players[msg.author.id] then
       players[msg.author.id] = {}
     end
     setmetatable(players[msg.author.id], meta)
 
     if command then
-      --User Interface
+      -- User Interface
       if command.main == 'help' then
-        msg:reply('**RPG**: Mit `+rpgstart` kommt man in die Charaktererstellung, mit `+stats` ruft man seine Statistiken ab und mit `+inventar` sein Inventar.')
+        msg:reply('**RPG**: Mit `'..prefix..'rpgstart` kommt man in die Charaktererstellung, mit `'..prefix..'stats` ruft man seine Statistiken ab und mit `'..prefix..'inventar` sein Inventar.')
       end
 
-      --Bot Control
+      -- Bot Control
       if command.main == 'stop' then
         if msg.author.id == client.owner.id then
           print('Saving...')
@@ -150,7 +150,7 @@ client:on('messageCreate', function(message)
           print('Saved.')
         end
 
-        --Basic Commands
+        -- Basic Commands
       elseif command.main == 'rpgstart' then
         if players[msg.author.id].characterCreation == 0 then
           players[msg.author.id].characterCreation = 1
@@ -161,14 +161,14 @@ client:on('messageCreate', function(message)
           msg.author:sendMessage('Wähle deine Rasse: Elf, Zwerg, Halbling oder Mensch?')
         elseif players[msg.author.id].characterCreation == 3 then
           msg.author:sendMessage('Wähle deine Klasse: Priester, Assasine, Krieger oder Magier?')
-        elseif players[msg.author.id].characterCreation == 3 then
-          msg.author:sendMessage('Du hast bereits einen Charakter. Um ihn dir anzusehen, schreibe `+stats`')
+        elseif players[msg.author.id].characterCreation == 4 then
+          msg.author:sendMessage('Du hast bereits einen Charakter. Um ihn dir anzusehen, schreibe `'..prefix..'stats`')
         end
       elseif command.main == 'stats' then
         if players[msg.author.id].characterCreation == 4 then
           msg:reply('**'..msg.author.mentionString..'s Stats:**\n**HP:** '..players[msg.author.id].hp..'\n**Level:** '..players[msg.author.id].level..'\n**Geschlecht:** '..players[msg.author.id].gender..'\n**Rasse:** '..players[msg.author.id].race..'\n**Klasse:** '..players[msg.author.id].class)
         else
-          msg:reply('Bitte erstelle zuerst einen Charakter mit +rpgstart.')
+          msg:reply('Bitte erstelle zuerst einen Charakter mit '..prefix..'rpgstart.')
         end
       elseif command.main == 'inventar' then
         if players[msg.author.id].characterCreation == 4 then
@@ -176,21 +176,21 @@ client:on('messageCreate', function(message)
           for k,v in pairs(players[msg.author.id].inventory) do
             inventoryString = inventoryString..v.amount..' '..k..'\n'
           end
-          msg:reply('**'..msg.author.mentionString..'s Inventar:**\n'..inventoryString..'Um genauere Informationen zu erhalten, schreibe `+info <Name des Gegenstandes>`.')
+          msg:reply('**'..msg.author.mentionString..'s Inventar:**\n'..inventoryString..'Um genauere Informationen zu erhalten, schreibe `'..prefix..'info <Name des Gegenstandes>`.')
         else
-          msg:reply('Bitte erstelle zuerst einen Charakter mit +rpgstart.')
+          msg:reply('Bitte erstelle zuerst einen Charakter mit '..prefix..'rpgstart.')
         end
       elseif command.main == 'info' then
-        for k,v in pairs(players[msg.author.id].inventory) do
-          if string.gsub(msg.content, '+info ', '') == k then
-            msg:reply(objects[string.gsub(msg.content, '+info ', '')].info)
+        for key, val in pairs(players[msg.author.id].inventory) do
+          if key == command.args[1] then
+            msg:reply(objects[command.args[1]].info)
           end
         end
       elseif command.main == 'newitem' and permCheck(msg.member, 'administrator') then
         statUpdate(msg.author, 'itemCreation', 1, 'Name?')
       end
 
-    --Character Creation
+    -- Character Creation
     elseif players[msg.author.id].characterCreation and players[msg.author.id].characterCreation < 4 then
       if string.find(msg.content, 'Mann') then
         characterCreation(1, 'gender', 'Mann', 'Schöne Sache, '..msg.author.mentionString..', schöne Sache. Nun zu deiner Rasse: Wärst du gerne ein flinker, intelligenter Elf oder lieber ein kleiner, praktischer Halbling? Wie wäre es mit einem starken Zwerg der nicht ganz so hell in der Birne ist oder einem klassischem, ausgeglichenem Menschen?')
@@ -217,32 +217,30 @@ client:on('messageCreate', function(message)
 
       end
 
-    --Server-only Things
+    -- Server-only Things
     elseif not msg.channel.isPrivate then
 
-      --DM-Commands
-      if string.find(msg.content, 'Level') then
-        if string.find(msg.content, 'für') and permCheck(msg.member, 'administrator') then
-          if string.find(msg.content, 'Abzug') then
-            for user in msg.mentionedUsers do
-              local lvlMod = tonumber(string.find(msg.content, '%d*'))
-              statUpdate(user, 'level', players[user.id].level - tonumber(string.find(msg.content, '%d*')), user.mentionString..' ist jetzt auf Level '..players[user.id].level - lvlMod..'.')
-            end
-          else
-            for user in msg.mentionedUsers do
-              local lvlMod = tonumber(string.find(msg.content, '%d*'))
-              statUpdate(user, 'level', players[user.id].level + tonumber(string.find(msg.content, '%d*')), user.mentionString..' ist jetzt auf Level '..players[user.id].level + lvlMod..'.')
-            end
+      -- DM-Commands
+      if string.find(msg.content, 'Level.*für') and permCheck(msg.member, 'administrator') then
+        if string.find(msg.content, 'Abzug') then
+          for user in msg.mentionedUsers do
+            local lvlMod = tonumber(string.match(msg.content, '^%d*'))
+            statUpdate(user, 'level', players[user.id].level - lvlMod, user.mentionString..' ist jetzt auf Level '..players[user.id].level - lvlMod..'.')
+          end
+        else
+          for user in msg.mentionedUsers do
+            local lvlMod = tonumber(string.match(msg.content, '^%d*'))
+            statUpdate(user, 'level', players[user.id].level + lvlMod, user.mentionString..' ist jetzt auf Level '..players[user.id].level + lvlMod..'.')
           end
         end
 
-      --Spells
+      -- Spells
       elseif string.find(msg.content, 'Ein Feuerball, mit viel Geknall') and (players[msg.author.id].class == 'Magier' or players[msg.author.id].class == 'Erschaffer') then
         for user in msg.mentionedUsers do
           statUpdate(user, 'hp', players[user.id].hp - 1, user.mentionString..' wurde getroffen und hat jetzt nur noch '..tostring(players[user.id].hp - 1)..' HP.')
         end
 
-      --Item Creation
+      -- Item Creation
     elseif players[msg.author.id].itemCreation ~= 0 and permCheck(msg.member, 'administrator') then
         if players[msg.author.id].itemCreation == 1 then
           objects[msg.content] = {}
@@ -257,9 +255,9 @@ client:on('messageCreate', function(message)
       end
     end
 
-    --Random Chests
-    if math.random(1,15) == 3 or msg.content == 'ranChest' then
-      local randval = math.random(1, table.len(objects)) -- get a random point
+    -- Random Chests
+    if math.random(1,15) == 3 then
+      local randval = math.random(1, objects:len()) -- get a random point
       local randentry
       local count = 0
       for k,v in pairs(objects) do
@@ -268,7 +266,7 @@ client:on('messageCreate', function(message)
           randentry = {key = k, val = v}
         end
       end
-      msg:reply('Du hast eine Kiste gefunden. Sie enthielt ein '..randentry.key..'.')
+      msg:reply('Du hast eine Kiste gefunden. Sie enthielt 1 '..randentry.key..'.')
       inventoryUpdate(msg.author, randentry.key, 1)
     end
   end
