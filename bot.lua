@@ -1,6 +1,6 @@
-local discordia = require('discordia')
-local json = require('json')
-local cmd = require('command.lua')
+local discordia = require("discordia")
+local json = require("json")
+local cmd = require("command.lua")
 
 local client = discordia.Client()
 
@@ -16,8 +16,11 @@ local meta = {
   }
 }
 
-local msg = ''
-local prefix = '#'
+local msg
+
+local prefix = ">"
+local separator = "/"
+local standardGuild = {}
 
 --functions
 function table.len(tbl)
@@ -28,24 +31,33 @@ function table.len(tbl)
   return val
 end
 
+function table.repop(tbl)
+  local count = 0
+  local newTbl = {}
+  for key, value in pairs(tbl) do
+    if value then
+      count = count + 1
+      newTbl[count] = value
+    end
+  end
+  return newTbl
+end
+
 local function writeTable(filename, tbl)
-  local file = io.open(filename, 'w')
+  local file = io.open(filename, "w")
   file:write(json.encode(tbl))
   file:close()
 end
 
 local function readTable(filename)
-  local file = io.open(filename, 'r')
-  local data = json.decode(file:read('*all'))
+  local file = io.open(filename, "r")
+  local data = json.decode(file:read("*all"))
   file:close()
-  if data then
-    return data
-  else
-    return {}
-  end
+  return data or {}
 end
 
 local function permCheck(member, permission)
+  if not member then return end
   for role in member.roles do
     if role.permissions:has(permission) then
       return true
@@ -53,34 +65,53 @@ local function permCheck(member, permission)
   end
 end
 
-local function statUpdate(player, stat, statValue, verificationMsg)
-  if players[msg.author.id].characterCreation then
-    if players[msg.author.id].characterCreation == 4 then
-      players[player.id][stat] = statValue
+local function statUpdate(player, stat, statValue, displayValue, verificationMsg)
+  players[player.id][stat] = statValue
+  if players[player.id].characterCreation then
+    if players[player.id].characterCreation == 4 then
+      local success = false
+      for role in standardGuild.roles do
+        if role.name == displayValue then
+          role:disableAllPermissions()
+          standardGuild:getMember(player.id):addRole(role)
+          success = true
+        end
+      end
+      if not success then
+        local role = createRole()
+        role.name = displayValue
+        role:disableAllPermissions()
+        standardGuild:getMember(player.id):addRole(role)
+      end
       if verificationMsg then
         msg:reply(verificationMsg)
       end
     else
-      msg:reply('Bitte erstelle zuerst einen Charakter mit '..prefix..'rpgstart')
+      msg:reply("Bitte erstelle zuerst einen Charakter.")
     end
   else
-    msg:reply('Bitte erstelle zuerst einen Charakter mit '..prefix..'rpgstart')
+    msg:reply("Bitte erstelle zuerst einen Charakter.")
   end
 end
 
-local function characterCreation(step, stat, statValue, verificationMsg)
-  if players[msg.author.id].characterCreation then
-    if players[msg.author.id].characterCreation == step then
-      players[msg.author.id][stat] = statValue
-      players[msg.author.id].characterCreation = players[msg.author.id].characterCreation + 1
-      if verificationMsg then
-        msg:reply(verificationMsg)
-      end
-    else
-      msg:reply('Bitte erstelle zuerst einen Charakter mit '..prefix..'rpgstart')
+local function characterCreation(player, stat, statValue, displayValue, verificationMsg)
+  players[player.id][stat] = statValue
+  local success = false
+  for role in standardGuild.roles do
+    if role.name == displayValue then
+      role:disableAllPermissions()
+      standardGuild:getMember(player.id):addRole(role)
+      success = true
     end
-  else
-    msg:reply('Bitte erstelle zuerst einen Charakter mit '..prefix..'rpgstart')
+  end
+  if not success then
+    local role = standardGuild:createRole()
+    role.name = displayValue
+    role:disableAllPermissions()
+    standardGuild:getMember(player.id):addRole(role)
+  end
+  if verificationMsg then
+    msg:reply(verificationMsg)
   end
 end
 
@@ -91,172 +122,181 @@ local function inventoryUpdate(user, object, amount)
   players[user.id].inventory[object].amount = players[user.id].inventory[object].amount + amount
 end
 
-do
-  print('Starting...')
-  players = readTable('players.json')
-  objects = readTable('objects.json')
-  print('loaded data:')
-  p(players)
-  p(objects)
-  math.randomseed(os.time())
-end
+print("Starting...")
+players = readTable("players.json")
+objects = readTable("objects.json")
+print("loaded data:")
+p(players)
+p(objects)
+math.randomseed(os.time())
 
-client:on('ready', function()
-  print('Logged in as '.. client.user.username)
-  client:setGameName(prefix..'help')
+client:on("ready", function()
+  print("Logged in as ".. client.user.username)
+  client:setGameName(prefix.."help")
+  standardGuild = client:getGuild("272432542559502337")
 end)
 
-client:on('messageCreate', function(message)
-  print(message.timestamp..' <'..message.author.name..'> '..message.content) --Screen output
-  if message.author.id ~= client.user.id then --If not himself
+client:on("messageCreate", function(message)
+  print(os.date('!%Y-%m-%d %H:%M:%S', message.createdAt).. ' <'.. message.author.name.. '> '.. message.content) --Screen output
+  if not message.author.bot then
     msg = message
-    local command = cmd.separate(prefix, msg.content)
+    local command = cmd.separate(msg.content, prefix, separator)
 
     -- Metatable Setup
-    if not players[msg.author.id] then
-      players[msg.author.id] = {}
-    end
+    players[msg.author.id] = players[msg.author.id] or {}
     setmetatable(players[msg.author.id], meta)
 
     if command then
       -- User Interface
-      if command.main == 'help' then
-        msg:reply('**RPG**: Mit `'..prefix..'rpgstart` kommt man in die Charaktererstellung, mit `'..prefix..'stats` ruft man seine Statistiken ab und mit `'..prefix..'inventar` sein Inventar.')
+      if command.main == "help" then
+        msg:reply("Mit `"..prefix.."stats` ruft man seine Statistiken ab und mit `"..prefix.."inventar` sein Inventar.")
       end
 
       -- Bot Control
-      if command.main == 'stop' then
+      if command.main == "stop" then
         if msg.author.id == client.owner.id then
-          print('Saving...')
-          writeTable('players.json', players)
-          writeTable('objects.json', objects)
-          print('Saved.')
+          print("Saving...")
+          writeTable("players.json", players)
+          writeTable("objects.json", objects)
+          print("Saved.")
           os.exit()
         end
-      elseif command.main == 'restart' then
+      elseif command.main == "restart" then
         if msg.author.id == client.owner.id then
-          print('Saving...')
-          writeTable('players.json', players)
-          writeTable('objects.json', objects)
-          print('Saved.')
-          os.execute[[E:\DEV\Discordia_DumbleDalf\luvit bot.lua]]
+          print("Saving...")
+          writeTable("players.json", players)
+          writeTable("objects.json", objects)
+          print("Saved.")
+          os.execute[[.\luvit bot.lua]]
           os.exit()
         end
-      elseif command.main == 'save' then
+      elseif command.main == "save" then
         if msg.author.id == client.owner.id then
-          print('Saving...')
-          writeTable('players.json', players)
-          writeTable('objects.json', objects)
-          print('Saved.')
+          print("Saving...")
+          writeTable("players.json", players)
+          writeTable("objects.json", objects)
+          print("Saved.")
         end
 
         -- Basic Commands
-      elseif command.main == 'rpgstart' then
+      elseif command.main == "start" then
         if players[msg.author.id].characterCreation == 0 then
           players[msg.author.id].characterCreation = 1
-          msg.author:sendMessage('Willkommen zur Charaktererstellung. Als erstes muss ich dich fragen, welches Geschlecht du gerne wärst. (Mann oder Frau, tut mir echt leid Andere.)')
+          msg.author:sendMessage("Willkommen auf unserem Server. Um als vollwertiges Mitglied am RPG teilzunehmen, musst du einen Charakter erstellen. Als erstes muss ich dich fragen, welches Geschlecht du gerne wärst. (Da diese Eigenschaft als einzige keine Auswirkung auf meine Funktion hat, darfst du hier angeben was auch immer du willst.)")
         elseif players[msg.author.id].characterCreation == 1 then
-          msg.author:sendMessage('Wähle dein Geschlecht: Mann oder Frau?')
+          msg.author:sendMessage("Wähle dein Geschlecht.")
         elseif players[msg.author.id].characterCreation == 2 then
-          msg.author:sendMessage('Wähle deine Rasse: Elf, Zwerg, Halbling oder Mensch?')
+          msg.author:sendMessage("Wähle dein Haus: Gryffindor, Ravenclaw, Hufflepuff oder Slytherin?")
         elseif players[msg.author.id].characterCreation == 3 then
-          msg.author:sendMessage('Wähle deine Klasse: Priester, Assasine, Krieger oder Magier?')
+          msg.author:sendMessage("Wähle zwei Klassen: Besenflugstunden, Kräuterkunde, Pflege magischer Geschöpfe, Verteidigung gegen die dunklen Künste, Verwandlung, Zauberkunst oder Zaubertränke.")
         elseif players[msg.author.id].characterCreation == 4 then
-          msg.author:sendMessage('Du hast bereits einen Charakter. Um ihn dir anzusehen, schreibe `'..prefix..'stats`')
+          msg.author:sendMessage("Du hast bereits einen Charakter. Um ihn dir anzusehen, schreibe `"..prefix.."stats`")
         end
-      elseif command.main == 'stats' then
+      elseif command.main == "stats" then
         if players[msg.author.id].characterCreation == 4 then
-          msg:reply('**'..msg.author.mentionString..'s Stats:**\n**HP:** '..players[msg.author.id].hp..'\n**Level:** '..players[msg.author.id].level..'\n**Geschlecht:** '..players[msg.author.id].gender..'\n**Rasse:** '..players[msg.author.id].race..'\n**Klasse:** '..players[msg.author.id].class)
+          msg:reply("**"..msg.author.mentionString.."s Stats:**\n**HP:** "..players[msg.author.id].hp.."\n**Level:** "..players[msg.author.id].level)
         else
-          msg:reply('Bitte erstelle zuerst einen Charakter mit '..prefix..'rpgstart.')
+          msg:reply("Bitte erstelle zuerst einen Charakter mit "..prefix.."start.")
         end
-      elseif command.main == 'inventar' then
+      elseif command.main == "inventar" then
         if players[msg.author.id].characterCreation == 4 then
-          local inventoryString = ''
+          local inventoryString = ""
           for k,v in pairs(players[msg.author.id].inventory) do
-            inventoryString = inventoryString..v.amount..' '..k..'\n'
+            inventoryString = inventoryString..v.amount.." "..k.."\n"
           end
-          msg:reply('**'..msg.author.mentionString..'s Inventar:**\n'..inventoryString..'Um genauere Informationen zu erhalten, schreibe `'..prefix..'info <Name des Gegenstandes>`.')
+          msg:reply("**"..msg.author.mentionString.."s Inventar:**\n"..inventoryString.."Um genauere Informationen zu erhalten, schreibe `"..prefix.."info <Name des Gegenstandes>`.")
         else
-          msg:reply('Bitte erstelle zuerst einen Charakter mit '..prefix..'rpgstart.')
+          msg:reply("Bitte erstelle zuerst einen Charakter mit "..prefix.."start.")
         end
-      elseif command.main == 'info' then
+      elseif command.main == "info" then
         for key, val in pairs(players[msg.author.id].inventory) do
           if key == command.args[1] then
             msg:reply(objects[command.args[1]].info)
           end
         end
-      elseif command.main == 'newitem' and permCheck(msg.member, 'administrator') then
+      elseif command.main == "newitem" and permCheck(msg.member, "administrator") then
         objects[command.args[1]] = {info = command.args[2]}
       end
 
     -- Character Creation
-    elseif players[msg.author.id].characterCreation and players[msg.author.id].characterCreation < 4 then
-      if string.find(msg.content, 'Mann') then
-        characterCreation(1, 'gender', 'Mann', 'Schöne Sache, '..msg.author.mentionString..', schöne Sache. Nun zu deiner Rasse: Wärst du gerne ein flinker, intelligenter Elf oder lieber ein kleiner, praktischer Halbling? Wie wäre es mit einem starken Zwerg der nicht ganz so hell in der Birne ist oder einem klassischem, ausgeglichenem Menschen?')
-      elseif string.find(msg.content, 'Frau') then
-        characterCreation(1, 'gender', 'Frau', 'Schöne Sache, '..msg.author.mentionString..', schöne Sache. Nun zu deiner Rasse: Wärst du gerne eine flinke, intelligente Elfe oder lieber eine kleine, praktische Halblingsfrau? Wie wäre es mit einer starken Zwergenfrau die nicht ganz so hell in der Birne ist oder einer klassischen, ausgeglichenen Menschenfrau?')
-      elseif string.find(msg.content, 'Zwerg') then
-        characterCreation(2, 'race', 'Zwerg', 'Soso. Ein Zwerg. Als letztes suche dir bitte eine Klasse aus: Möchtest du ein von Gott getriebener Priester sein? Oder ein hinterhältiger Assasine? Möchtest du mit der Kraft eines Kriegers zuschlagen können oder bist du ein Magier mit voller Trickkiste?')
-      elseif string.find(msg.content, 'Mensch') then
-        characterCreation(2, 'race', 'Mensch', 'Soso. Ein Mensch. Als letztes suche dir bitte eine Klasse aus: Möchtest du ein von Gott getriebener Priester sein? Oder ein hinterhältiger Assasine? Möchtest du mit der Kraft eines Kriegers zuschlagen können oder bist du ein Magier mit voller Trickkiste?')
-      elseif string.find(msg.content, 'Elfe') then
-        characterCreation(2, 'race', 'Elf', 'Soso. Eine Elfe. Als letztes suche dir bitte eine Klasse aus: Möchtest du ein von Gott getriebener Priester sein? Oder ein hinterhältiger Assasine? Möchtest du mit der Kraft eines Kriegers zuschlagen können oder bist du ein Magier mit voller Trickkiste?')
-      elseif string.find(msg.content, 'Elf') then
-        characterCreation(2, 'race', 'Elf', 'Soso. Ein Elf. Als letztes suche dir bitte eine Klasse aus: Möchtest du ein von Gott getriebener Priester sein? Oder ein hinterhältiger Assasine? Möchtest du mit der Kraft eines Kriegers zuschlagen können oder bist du ein Magier mit voller Trickkiste?')
-      elseif string.find(msg.content, 'Halbling') then
-        characterCreation(2, 'race', 'Halbling', 'Soso. Ein Halbling. Als letztes suche dir bitte eine Klasse aus: Möchtest du ein von Gott getriebener Priester sein? Oder ein hinterhältiger Assasine? Möchtest du mit der Kraft eines Kriegers zuschlagen können oder bist du ein Magier mit voller Trickkiste?')
-      elseif string.find(msg.content, 'Priester') then
-        characterCreation(3, 'class', 'Priester', 'Ein Geistiger also. Interessante Wahl.')
-      elseif string.find(msg.content, 'Assasine') then
-        characterCreation(3, 'class', 'Assasine', 'Ein Assasine also. Interessante Wahl.')
-      elseif string.find(msg.content, 'Krieger') then
-        characterCreation(3, 'class', 'Krieger', 'Ein Kämpfer also. Interessante Wahl.')
-      elseif string.find(msg.content, 'Magier') then
-        characterCreation(3, 'class', 'Magier', 'Ein Magier also. Interessante Wahl.')
+    elseif players[msg.author.id].characterCreation and players[msg.author.id].characterCreation < 4 and msg.channel.isPrivate then
+      local house = msg.content:match("Gryffindor") or msg.content:match("Ravenclaw") or msg.content:match("Hufflepuff") or msg.content:match("Slytherin")
+      local arts = {
+        msg.content:match("Besenflugstunden"),
+        msg.content:match("Kräuterkunde"),
+        msg.content:match("Pflege magischer Geschöpfe"),
+        msg.content:match("Verteidigung gegen die dunklen Künste"),
+        msg.content:match("Verwandlung"),
+        msg.content:match("Zauberkunst"),
+        msg.content:match("Zaubertränke")
+      }
+      arts = table.repop(arts)
 
+      if players[msg.author.id].characterCreation == 1 then
+        characterCreation(msg.author, "gender", msg.content, "Geschlecht: "..msg.content, "Schöne Sache, "..msg.author.mentionString..", schöne Sache. Nun zu deinem Haus. Es gibt einige Tests im sagenumwobenen Internetz, doch der beste ist vermutlich der originale: Wenn du dir auf www.pottermore.com einen Account erstellst, bekommst du die Chance, diesen und viele weitere durchzuführen. Natürlich kannst du dir auch ein Haus aussuchen.")
+        players[msg.author.id].characterCreation = 2
+      elseif players[msg.author.id].characterCreation == 2 and house then
+        characterCreation(msg.author, "house", house, house, "Ein "..house.." also. Als nächstes wähle zwei Fächer: Besenflugstunden, Kräuterkunde, Pflege magischer Geschöpfe, Verteidigung gegen die dunklen Künste, Verwandlung, Zauberkunst oder Zaubertränke.")
+        players[msg.author.id].characterCreation = 3
+      elseif players[msg.author.id].characterCreation == 3 and arts then
+        if #arts == 2 and arts[1] ~= arts[2] then
+          characterCreation(msg.author, "arts", nil, arts[1])
+          characterCreation(msg.author, "arts", arts, arts[2], "Das war's auch schon. Viel Spaß!")
+          players[msg.author.id].characterCreation = 4
+        else
+          msg:reply("**Zwei** Fächer, sagte ich.")
+        end
       end
 
-    -- Server-only Things
+    --[[ Server-only Things (NOT WORKING RIGHT NOW WOULD NEED TO CHANGE statUpdate ARGS)
     elseif not msg.channel.isPrivate then
 
       -- DM-Commands
-      if string.find(msg.content, 'Level.*für') and permCheck(msg.member, 'administrator') then
-        if string.find(msg.content, 'Abzug') then
+
+      if string.find(msg.content, "Level.*für") and permCheck(msg.member, "administrator") then
+        if string.find(msg.content, "Abzug") then
           for user in msg.mentionedUsers do
-            local lvlMod = tonumber(string.match(msg.content, '^%d*'))
-            statUpdate(user, 'level', players[user.id].level - lvlMod, user.mentionString..' ist jetzt auf Level '..players[user.id].level - lvlMod..'.')
+            local lvlMod = tonumber(string.match(msg.content, "^%d*"))
+            statUpdate(user, "level", players[user.id].level - lvlMod, user.mentionString.." ist jetzt auf Level "..players[user.id].level - lvlMod..".")
           end
         else
           for user in msg.mentionedUsers do
-            local lvlMod = tonumber(string.match(msg.content, '^%d*'))
-            statUpdate(user, 'level', players[user.id].level + lvlMod, user.mentionString..' ist jetzt auf Level '..players[user.id].level + lvlMod..'.')
+            local lvlMod = tonumber(string.match(msg.content, "^%d*"))
+            statUpdate(user, "level", players[user.id].level + lvlMod, user.mentionString.." ist jetzt auf Level "..players[user.id].level + lvlMod..".")
           end
         end
+      end
 
       -- Spells
-      elseif string.find(msg.content, 'Ein Feuerball, mit viel Geknall') and (players[msg.author.id].class == 'Magier' or players[msg.author.id].class == 'Erschaffer') then
-        for user in msg.mentionedUsers do
-          statUpdate(user, 'hp', players[user.id].hp - 1, user.mentionString..' wurde getroffen und hat jetzt nur noch '..tostring(players[user.id].hp - 1)..' HP.')
-        end
+    elseif string.find(msg.content, "Avada Kedabra") then
+      for user in msg.mentionedUsers do
+        statUpdate(user, "hp", players[user.id].hp - 1, user.mentionString.." wurde getroffen und hat jetzt nur noch "..tostring(players[user.id].hp - 1).." HP.")
       end
+      ]]
     end
 
     -- Random Chests
-    if math.random(1,15) == 3 then
-      local randval = math.random(1, objects:len()) -- get a random point
+    if math.random(1,15) == 3 and objects then
+      local randval = math.random(1, table.len(objects)) -- get a random point
       local randentry
       local count = 0
       for k,v in pairs(objects) do
         count = count + 1
-        if(count == randval) then
+        if (count == randval) then
           randentry = {key = k, val = v}
         end
       end
-      msg:reply('Du hast eine Kiste gefunden. Sie enthielt 1 '..randentry.key..'.')
+      msg:reply("Du hast 1 "..randentry.key.." gefunden. Leider ist das momentan fast nutzlos.")
       inventoryUpdate(msg.author, randentry.key, 1)
     end
   end
 end)
 
-client:run('MjU0OTUyNjQ5OTIzODg3MTA0.CyWk6Q.xzZ1t5kFtX3I05wNZxjVuhSEOJU')
+client:on("memberJoin", function(member)
+  if players[msg.author.id].characterCreation == 0 then
+    players[msg.author.id].characterCreation = 1
+    msg.author:sendMessage("Willkommen auf unserem Server. Um als vollwertiges Mitglied am RPG teilzunehmen, musst du einen Charakter erstellen. Als erstes muss ich dich fragen, welches Geschlecht du gerne wärst. (Da diese Eigenschaft als einzige keine Auswirkung auf meine Funktion hat, darfst du hier angeben was auch immer du willst.)")
+  end
+end)
+
+client:run(args[2])
