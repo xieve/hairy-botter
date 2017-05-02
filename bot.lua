@@ -10,13 +10,25 @@ local msg = {}
 local meta = {
   __index = {
     inventory = {},
-    hp = 30,
+    hp = {
+      value = 30,
+      max = 30
+    },
     level = 0,
     characterCreation = 0
   }
 }
-
-local msg
+local spells = {
+  accio = {
+    required = {
+      skill = "Zauberkunst",
+      level = 4
+    },
+    init = function (player, args)
+      inventoryUpdate(player, args, 1)
+    end
+  }
+}
 
 local prefix = ">"
 local separator = "/"
@@ -65,23 +77,39 @@ local function permCheck(member, permission)
   end
 end
 
-local function statUpdate(player, stat, statValue, displayValue, verificationMsg)
-  players[player.id][stat] = statValue
+local function statUpdate(player, stat, statValue, displayStat, verificationMsg)
   if players[player.id].characterCreation then
     if players[player.id].characterCreation == 4 then
+      players[player.id][stat] = statValue
+
+      local member = standardGuild:getMember(player.id)
       local success = false
+      local displayValue = displayStat..": "..statValue.value
+
       for role in standardGuild.roles do
         if role.name == displayValue then
-          role:disableAllPermissions()
-          standardGuild:getMember(player.id):addRole(role)
+          member:addRole(role)
           success = true
         end
       end
       if not success then
-        local role = createRole()
+        local role = standardGuild:createRole()
         role.name = displayValue
         role:disableAllPermissions()
-        standardGuild:getMember(player.id):addRole(role)
+        if type(statValue) == "table" and statValue.value and statValue.max then
+          local greenValue = statValue.value * 255 / statValue.max > 127 and 255 or statValue.value * 620 / statValue.max
+          local redValue = statValue.value * 255 / statValue.max < 128 and 255 or 620 - statValue.value * 620 / statValue.max
+          local blueValue = 0
+          p(redValue, greenValue, blueValue)
+          role.color = discordia.Color(redValue, greenValue, blueValue)
+        end
+
+        for role in member.roles do
+          if role.name:find("^"..displayStat) then
+            member:removeRole(role)
+          end
+        end
+        member:addRole(role)
       end
       if verificationMsg then
         msg:reply(verificationMsg)
@@ -96,19 +124,30 @@ end
 
 local function characterCreation(player, stat, statValue, displayValue, verificationMsg)
   players[player.id][stat] = statValue
+
+  local member = standardGuild:getMember(player.id)
   local success = false
-  for role in standardGuild.roles do
-    if role.name == displayValue then
-      role:disableAllPermissions()
-      standardGuild:getMember(player.id):addRole(role)
-      success = true
+
+  if displayValue then
+    for role in standardGuild.roles do
+      if role.name == displayValue then
+        role:disableAllPermissions()
+        member:addRole(role)
+        success = true
+      end
     end
-  end
-  if not success then
-    local role = standardGuild:createRole()
-    role.name = displayValue
-    role:disableAllPermissions()
-    standardGuild:getMember(player.id):addRole(role)
+    if not success then
+      local role = standardGuild:createRole()
+      role.name = displayValue
+      role:disableAllPermissions()
+      if type(statValue) == "table" and statValue.value and statValue.max then
+        local greenValue = (statValue.value * 255) / (statValue.max)
+        local redValue = 255 - greenValue
+        local blueValue = 0
+        role.color = discordia.Color(redValue, greenValue, blueValue)
+      end
+      member:addRole(role)
+    end
   end
   if verificationMsg then
     msg:reply(verificationMsg)
@@ -167,7 +206,7 @@ client:on("messageCreate", function(message)
           writeTable("players.json", players)
           writeTable("objects.json", objects)
           print("Saved.")
-          os.execute[[.\luvit bot.lua]]
+          os.execute[[.\start]]
           os.exit()
         end
       elseif command.main == "save" then
@@ -240,6 +279,7 @@ client:on("messageCreate", function(message)
         players[msg.author.id].characterCreation = 3
       elseif players[msg.author.id].characterCreation == 3 and arts then
         if #arts == 2 and arts[1] ~= arts[2] then
+          characterCreation(msg.author, "hp", {value = 30, max = 30}, "HP: 30")
           characterCreation(msg.author, "arts", nil, arts[1])
           characterCreation(msg.author, "arts", arts, arts[2], "Das war's auch schon. Viel Spaß!")
           players[msg.author.id].characterCreation = 4
@@ -266,13 +306,38 @@ client:on("messageCreate", function(message)
           end
         end
       end
-
+]]
       -- Spells
-    elseif string.find(msg.content, "Avada Kedabra") then
+    elseif string.find(msg.content, "Schleuderi Testiculum") then
       for user in msg.mentionedUsers do
-        statUpdate(user, "hp", players[user.id].hp - 1, user.mentionString.." wurde getroffen und hat jetzt nur noch "..tostring(players[user.id].hp - 1).." HP.")
+        statUpdate(user, "hp", {
+            value = players[user.id].hp.value - 5,
+            max = players[user.id].hp.max
+          },
+          "HP",
+          user.mentionString.." wurde getroffen und hat jetzt nur noch "..tostring(players[user.id].hp.value - 5).." HP."
+        )
       end
-      ]]
+    elseif string.find(msg.content, "Heile, Heile") then
+      for user in msg.mentionedUsers do
+        if players[user.id].hp.value + 5 > players[user.id].hp.max then
+          statUpdate(user, "hp", {
+              value = players[user.id].hp.max,
+              max = players[user.id].hp.max
+            },
+            "HP",
+            user.mentionString.." wurde geheilt und hat jetzt "..tostring(players[user.id].hp.max).." HP."
+          )
+        else
+          statUpdate(user, "hp", {
+              value = players[user.id].hp.value + 5,
+              max = players[user.id].hp.max
+            },
+            "HP",
+            user.mentionString.." wurde geheilt und hat jetzt "..tostring(players[user.id].hp.value + 5).." HP."
+          )
+        end
+      end
     end
 
     -- Random Chests
