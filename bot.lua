@@ -84,7 +84,7 @@ local function statUpdate(player, stat, statValue, displayStat, verificationMsg)
 
       local member = standardGuild:getMember(player.id)
       local success = false
-      local displayValue = displayStat..": "..statValue.value
+      local displayValue = type(statValue) == "table" and statValue.value and (statValue.max and displayStat..": "..statValue.value.."/"..statValue.max) or displayStat..": "..statValue.value
 
       for role in standardGuild.roles do
         if role.name == displayValue then
@@ -100,7 +100,6 @@ local function statUpdate(player, stat, statValue, displayStat, verificationMsg)
           local greenValue = statValue.value * 255 / statValue.max > 127 and 255 or statValue.value * 620 / statValue.max
           local redValue = statValue.value * 255 / statValue.max < 128 and 255 or 620 - statValue.value * 620 / statValue.max
           local blueValue = 0
-          p(redValue, greenValue, blueValue)
           role.color = discordia.Color(redValue, greenValue, blueValue)
         end
 
@@ -127,27 +126,25 @@ local function characterCreation(player, stat, statValue, displayValue, verifica
 
   local member = standardGuild:getMember(player.id)
   local success = false
+  local displayValue = type(statValue) == "table" and statValue.value and (statValue.max and displayStat..": "..statValue.value.."/"..statValue.max) or displayStat..": "..statValue.value
 
-  if displayValue then
-    for role in standardGuild.roles do
-      if role.name == displayValue then
-        role:disableAllPermissions()
-        member:addRole(role)
-        success = true
-      end
-    end
-    if not success then
-      local role = standardGuild:createRole()
-      role.name = displayValue
-      role:disableAllPermissions()
-      if type(statValue) == "table" and statValue.value and statValue.max then
-        local greenValue = (statValue.value * 255) / (statValue.max)
-        local redValue = 255 - greenValue
-        local blueValue = 0
-        role.color = discordia.Color(redValue, greenValue, blueValue)
-      end
+  for role in standardGuild.roles do
+    if role.name == displayValue then
       member:addRole(role)
+      success = true
     end
+  end
+  if not success then
+    local role = standardGuild:createRole()
+    role.name = displayValue
+    role:disableAllPermissions()
+    if type(statValue) == "table" and statValue.value and statValue.max then
+      local greenValue = statValue.value * 255 / statValue.max > 127 and 255 or statValue.value * 620 / statValue.max
+      local redValue = statValue.value * 255 / statValue.max < 128 and 255 or 620 - statValue.value * 620 / statValue.max
+      local blueValue = 0
+      role.color = discordia.Color(redValue, greenValue, blueValue)
+    end
+    member:addRole(role)
   end
   if verificationMsg then
     msg:reply(verificationMsg)
@@ -279,7 +276,7 @@ client:on("messageCreate", function(message)
         players[msg.author.id].characterCreation = 3
       elseif players[msg.author.id].characterCreation == 3 and arts then
         if #arts == 2 and arts[1] ~= arts[2] then
-          characterCreation(msg.author, "hp", {value = 30, max = 30}, "HP: 30")
+          characterCreation(msg.author, "hp", {value = 30, max = 30}, "HP")
           characterCreation(msg.author, "arts", nil, arts[1])
           characterCreation(msg.author, "arts", arts, arts[2], "Das war's auch schon. Viel Spaß!")
           players[msg.author.id].characterCreation = 4
