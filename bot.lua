@@ -137,7 +137,7 @@ math.randomseed(os.time())
 client:on("ready", function()
   print("Logged in as ".. client.user.username)
   client:setGameName(prefix.."hilfe")
-  standardGuild = client:getGuild("272432542559502337")
+  standardGuild = client:getGuild("248445888446464010")
 end)
 
 client:on("messageCreate", function(message)
