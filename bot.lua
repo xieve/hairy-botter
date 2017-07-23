@@ -173,7 +173,7 @@ client:on("messageCreate", function(message)
           print("Saving...")
           xvngn.save()
           print("Saved.")
-          os.execute[[.\start.ps1]]
+          os.execute[[./start.sh]]
           os.exit()
         end
       elseif command.main == "save" then
@@ -297,6 +297,12 @@ client:on("messageCreate", function(message)
 end)
 
 client:on("memberJoin", function(member)
+  -- Metatable Setup
+  xvngn.players[msg.author.id] = xvngn.players[msg.author.id] or {}
+  setmetatable(xvngn.players[msg.author.id], meta)
+  p(xvngn.players[msg.author.id].characterCreation)
+
+  -- Welcome Message
   if xvngn.players[msg.author.id].characterCreation == 0 then
     xvngn.players[msg.author.id].characterCreation = 1
     msg.author:sendMessage("Willkommen auf unserem Server. Um als vollwertiges Mitglied am RPG teilzunehmen, musst du einen Charakter erstellen. Als erstes muss ich dich fragen, welches Geschlecht du gerne wärst. (Da diese Eigenschaft als einzige keine Auswirkung auf meine Funktion hat, darfst du hier angeben was auch immer du willst.)")
