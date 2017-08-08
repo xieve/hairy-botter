@@ -231,8 +231,10 @@ client:on("messageCreate", function(message)
         or msg.content:match("%d+ Punkte A?b?z?u?g?%s?für (Ravenclaw)")
         or msg.content:match("%d+ Punkte A?b?z?u?g?%s?für (Hufflepuff)")
         or msg.content:match("%d+ Punkte A?b?z?u?g?%s?für (Slytherin)")
-      xvngn.players[house].points = (minus == "Abzug") and xvngn.players[house].points - amount or xvngn.players[house].points + amount
-      msg:reply(house.." hat jetzt "..xvngn.players[house].points.." Punkte.")
+      if house then
+        xvngn.players[house].points = (minus == "Abzug") and xvngn.players[house].points - amount or xvngn.players[house].points + amount
+        msg:reply(house.." hat jetzt "..xvngn.players[house].points.." Punkte.")
+      end
 
     -- Character Creation
     elseif xvngn.players[msg.author.id].characterCreation and xvngn.players[msg.author.id].characterCreation < 4 and msg.channel.isPrivate then
